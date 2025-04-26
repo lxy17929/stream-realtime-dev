@@ -53,8 +53,7 @@ public class DwsTradeProvinceOrderWindow {
 
         KafkaSource<String> kafkaSource = FlinkSourceUtil.getKafkaSource("dwd_trade_order_detail", "dws_trade_province_order_window");
 
-        DataStreamSource<String> kafkaStrDS
-                = env.fromSource(kafkaSource, WatermarkStrategy.noWatermarks(), "Kafka_Source");
+        DataStreamSource<String> kafkaStrDS = env.fromSource(kafkaSource, WatermarkStrategy.noWatermarks(), "Kafka_Source");
 
         SingleOutputStreamOperator<JSONObject> jsonObjDS = kafkaStrDS.process(
                 new ProcessFunction<String, JSONObject>() {
@@ -69,6 +68,7 @@ public class DwsTradeProvinceOrderWindow {
         );
 
         KeyedStream<JSONObject, String> orderDetailIdKeyedDS = jsonObjDS.keyBy(jsonObj -> jsonObj.getString("id"));
+        //orderDetailIdKeyedDS.print();
 
         SingleOutputStreamOperator<JSONObject> distinctDS = orderDetailIdKeyedDS.process(
                 new KeyedProcessFunction<String, JSONObject, JSONObject>() {
@@ -76,8 +76,7 @@ public class DwsTradeProvinceOrderWindow {
 
                     @Override
                     public void open(Configuration parameters) {
-                        ValueStateDescriptor<JSONObject> valueStateDescriptor
-                                = new ValueStateDescriptor<>("lastJsonObjState", JSONObject.class);
+                        ValueStateDescriptor<JSONObject> valueStateDescriptor = new ValueStateDescriptor<>("lastJsonObjState", JSONObject.class);
                         valueStateDescriptor.enableTimeToLive(StateTtlConfig.newBuilder(Time.seconds(10)).build());
                         lastJsonObjState = getRuntimeContext().getState(valueStateDescriptor);
                     }
@@ -95,6 +94,7 @@ public class DwsTradeProvinceOrderWindow {
                     }
                 }
         );
+        //distinctDS.print();
 
         SingleOutputStreamOperator<JSONObject> withWatermarkDS = distinctDS.assignTimestampsAndWatermarks(
                 WatermarkStrategy
@@ -108,6 +108,7 @@ public class DwsTradeProvinceOrderWindow {
                                 }
                         )
         );
+        //withWatermarkDS.print();
 
         SingleOutputStreamOperator<TradeProvinceOrderBean> beanDS = withWatermarkDS.map(
                 new MapFunction<JSONObject, TradeProvinceOrderBean>() {
@@ -127,7 +128,7 @@ public class DwsTradeProvinceOrderWindow {
                 }
         );
 
-//        beanDS.print();
+        beanDS.print();
 
         KeyedStream<TradeProvinceOrderBean, String> provinceIdKeyedDS = beanDS.keyBy(TradeProvinceOrderBean::getProvinceId);
 
