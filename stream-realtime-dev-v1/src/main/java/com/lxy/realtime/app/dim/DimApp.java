@@ -35,6 +35,7 @@ import org.apache.hadoop.hbase.client.Connection;
 
 public class DimApp {
     public static void main(String[] args) throws Exception {
+        System.getProperty("HADOOP_USER_NAME","root");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         env.setParallelism(4);

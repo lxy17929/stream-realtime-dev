@@ -18,6 +18,7 @@ import java.time.Duration;
 
 public class DwdTradeOrderPaySucDetail {
     public static void main(String[] args) throws Exception {
+        System.getProperty("HADOOP_USER_NAME","root");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         env.setParallelism(4);

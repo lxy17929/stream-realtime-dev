@@ -16,6 +16,7 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 public class DwdTradeCartAdd {
     public static void main(String[] args) throws Exception {
+        System.getProperty("HADOOP_USER_NAME","root");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         env.setParallelism(4);
@@ -52,7 +53,7 @@ public class DwdTradeCartAdd {
                 "   and ( op = 'r' or \n" +
                 "   ( op='r' and after['sku_num'] is not null and (CAST(after['sku_num'] AS INT) > CAST(after['sku_num'] AS INT))))"
         );
-//        cartInfo.execute().print();
+        cartInfo.execute().print();
 
         tableEnv.executeSql(" create table "+Constant.TOPIC_DWD_TRADE_CART_ADD+"(\n" +
                 "    id string,\n" +

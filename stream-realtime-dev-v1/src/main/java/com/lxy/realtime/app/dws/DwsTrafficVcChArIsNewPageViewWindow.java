@@ -41,6 +41,7 @@ import org.apache.flink.util.Collector;
 
 public class DwsTrafficVcChArIsNewPageViewWindow {
     public static void main(String[] args) throws Exception {
+        System.getProperty("HADOOP_USER_NAME","root");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         env.setParallelism(1);

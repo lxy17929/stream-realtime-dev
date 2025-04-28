@@ -43,6 +43,7 @@ import java.util.concurrent.TimeUnit;
 
 public class DwsTradeProvinceOrderWindow {
     public static void main(String[] args) throws Exception {
+        System.getProperty("HADOOP_USER_NAME","root");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         env.setParallelism(1);

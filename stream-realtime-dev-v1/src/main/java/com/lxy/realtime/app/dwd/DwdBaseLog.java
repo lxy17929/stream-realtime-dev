@@ -42,6 +42,7 @@ public class DwdBaseLog {
     private static final String PAGE = "page";
 
     public static void main(String[] args) throws Exception {
+        System.getProperty("HADOOP_USER_NAME","root");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         env.setParallelism(4);
@@ -50,8 +51,7 @@ public class DwdBaseLog {
 
         KafkaSource<String> kafkaSource = FlinkSourceUtil.getKafkaSource("topic_log", "dwd_log");
 
-        DataStreamSource<String> kafkaStrDS = env
-                .fromSource(kafkaSource, WatermarkStrategy.noWatermarks(), "Kafka_Source");
+        DataStreamSource<String> kafkaStrDS = env.fromSource(kafkaSource, WatermarkStrategy.noWatermarks(), "Kafka_Source");
 
 //        kafkaStrDS.print();
 
@@ -151,7 +151,7 @@ public class DwdBaseLog {
                             Long ts = jsonObj.getLong("ts");
                             //~~~曝光日志~~~
                             JSONArray displayArr = jsonObj.getJSONArray("displays");
-                            if (displayArr != null && displayArr.size() > 0) {
+                            if (displayArr != null && !displayArr.isEmpty()) {
                                 for (int i = 0; i < displayArr.size(); i++) {
                                     JSONObject dispalyJsonObj = displayArr.getJSONObject(i);
                                     JSONObject newDisplayJsonObj = new JSONObject();
@@ -166,7 +166,7 @@ public class DwdBaseLog {
 
                             //~~~动作日志~~~
                             JSONArray actionArr = jsonObj.getJSONArray("actions");
-                            if (actionArr != null && actionArr.size() > 0) {
+                            if (actionArr != null && !actionArr.isEmpty()) {
                                 for (int i = 0; i < actionArr.size(); i++) {
                                     JSONObject actionJsonObj = actionArr.getJSONObject(i);
                                     JSONObject newActionJsonObj = new JSONObject();

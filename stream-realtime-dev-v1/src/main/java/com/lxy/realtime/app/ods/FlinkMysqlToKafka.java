@@ -13,6 +13,7 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 public class FlinkMysqlToKafka {
     @SneakyThrows
     public static void main(String[] args) {
+        System.getProperty("HADOOP_USER_NAME","root");
         //todo 环境
         StreamExecutionEnvironment env = FlinkEnvUtils.getFlinkRuntimeEnv();
 

@@ -43,11 +43,11 @@ public abstract class BaseApp {
 
         //2.6 设置状态后端以及检查点存储路径
         env.setStateBackend(new HashMapStateBackend());
-        env.getCheckpointConfig().setCheckpointStorage("hdfs://hadoop102:8020/ck/" + ckAndGroupId);
+        env.getCheckpointConfig().setCheckpointStorage("hdfs://hadoop102:8020/ck/" + ckAndGroupId);*/
 
         //2.7 设置操作hadoop的用户
-        System.setProperty("HADOOP_USER_NAME","atguigu");
-*/
+        System.setProperty("HADOOP_USER_NAME","root");
+
         //TODO 3.从kafka的主题中读取业务数据
         //3.1 声明消费的主题以及消费者组
         //3.2 创建消费者对象

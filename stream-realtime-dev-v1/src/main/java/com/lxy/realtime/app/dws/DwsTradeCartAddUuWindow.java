@@ -7,6 +7,7 @@ import com.realtime.common.function.BeanToJsonStrMapFunction;
 import com.realtime.common.utils.DateFormatUtil;
 import com.realtime.common.utils.FlinkSinkUtil;
 import com.realtime.common.utils.FlinkSourceUtil;
+import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
@@ -38,7 +39,9 @@ import org.apache.flink.util.Collector;
  */
 
 public class DwsTradeCartAddUuWindow {
-    public static void main(String[] args) throws Exception {
+    @SneakyThrows
+    public static void main(String[] args) {
+        System.getProperty("HADOOP_USER_NAME","root");
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
         env.setParallelism(1);
