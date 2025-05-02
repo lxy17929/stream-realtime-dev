@@ -10,7 +10,6 @@ import com.realtime.common.utils.FlinkSourceUtil;
 import com.realtime.common.utils.HBaseUtil;
 import com.ververica.cdc.connectors.mysql.source.MySqlSource;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.functions.MapFunction;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.api.common.state.MapStateDescriptor;
 import org.apache.flink.api.java.tuple.Tuple2;
@@ -28,7 +27,7 @@ import org.apache.hadoop.hbase.client.Connection;
 
 /**
  * @Package com.lxy.realtime.app.dim.DimApp
- * @Author luoxinyu
+ * @Author xinyu.luo
  * @Date 2025/4/11 8:39
  * @description: BaseApp
  */
@@ -72,35 +71,29 @@ public class DimApp {
                 }
         );
 
-//        jsonObjDS.print();
+        //jsonObjDS.print();
 
         MySqlSource<String> mySqlSource = FlinkSourceUtil.getMySqlSource("realtime_v2", "table_process_dim");
 
-        DataStreamSource<String> mysqlStrDS = env
-                .fromSource(mySqlSource, WatermarkStrategy.noWatermarks(), "mysql_source")
+        DataStreamSource<String> mysqlStrDS = env.fromSource(mySqlSource, WatermarkStrategy.noWatermarks(), "mysql_source")
                 .setParallelism(1);
 
-        SingleOutputStreamOperator<TableProcessDim> tpDS = mysqlStrDS.map(
-                new MapFunction<String, TableProcessDim>() {
-                    @Override
-                    public TableProcessDim map(String jsonStr) {
-                        JSONObject jsonObj = JSON.parseObject(jsonStr);
-                        String op = jsonObj.getString("op");
-                        TableProcessDim tableProcessDim;
-                        if("d".equals(op)){
-                            tableProcessDim = jsonObj.getObject("before", TableProcessDim.class);
-                        }else{
-                            tableProcessDim = jsonObj.getObject("after", TableProcessDim.class);
-                        }
-                        tableProcessDim.setOp(op);
-                        return tableProcessDim;
-                    }
-                }
-        ).setParallelism(1);
+        SingleOutputStreamOperator<TableProcessDim> cdcDbDimStreamMapCleanColumn = mysqlStrDS.map(s -> {
+            JSONObject jsonObj = JSON.parseObject(s);
+            String op = jsonObj.getString("op");
+            TableProcessDim tableProcessDim;
+            if("d".equals(op)){
+                tableProcessDim = jsonObj.getObject("before", TableProcessDim.class);
+            }else{
+                tableProcessDim = jsonObj.getObject("after", TableProcessDim.class);
+            }
+            tableProcessDim.setOp(op);
+            return tableProcessDim;
+        }).setParallelism(1);
 
-//        tpDS.print();
+        cdcDbDimStreamMapCleanColumn.print();
 
-        tpDS.map(
+        SingleOutputStreamOperator<TableProcessDim> tpDS = cdcDbDimStreamMapCleanColumn.map(
                 new RichMapFunction<TableProcessDim, TableProcessDim>() {
 
                     private Connection hbaseConn;
@@ -120,29 +113,27 @@ public class DimApp {
                         String op = tp.getOp();
                         String sinkTable = tp.getSinkTable();
                         String[] sinkFamilies = tp.getSinkFamily().split(",");
-                        if("d".equals(op)){
-                            HBaseUtil.dropHBaseTable(hbaseConn, Constant.HBASE_NAMESPACE,sinkTable);
-                        }else if("r".equals(op)||"c".equals(op)){
-                            HBaseUtil.createHBaseTable(hbaseConn,Constant.HBASE_NAMESPACE,sinkTable,sinkFamilies);
-                        }else{
-                            HBaseUtil.dropHBaseTable(hbaseConn,Constant.HBASE_NAMESPACE,sinkTable);
-                            HBaseUtil.createHBaseTable(hbaseConn,Constant.HBASE_NAMESPACE,sinkTable,sinkFamilies);
+                        if ("d".equals(op)) {
+                            HBaseUtil.dropHBaseTable(hbaseConn, Constant.HBASE_NAMESPACE, sinkTable);
+                        } else if ("r".equals(op) || "c".equals(op)) {
+                            HBaseUtil.createHBaseTable(hbaseConn, Constant.HBASE_NAMESPACE, sinkTable, sinkFamilies);
+                        } else {
+                            HBaseUtil.dropHBaseTable(hbaseConn, Constant.HBASE_NAMESPACE, sinkTable);
+                            HBaseUtil.createHBaseTable(hbaseConn, Constant.HBASE_NAMESPACE, sinkTable, sinkFamilies);
                         }
                         return tp;
                     }
                 }
         ).setParallelism(1);
 
-//        tpDS.print();
+        //tpDS.print();
 
-        MapStateDescriptor<String, TableProcessDim> mapStateDescriptor =
-                new MapStateDescriptor<>("mapStateDescriptor",String.class, TableProcessDim.class);
+        MapStateDescriptor<String, TableProcessDim> mapStateDescriptor = new MapStateDescriptor<>("mapStateDescriptor",String.class, TableProcessDim.class);
         BroadcastStream<TableProcessDim> broadcastDS = tpDS.broadcast(mapStateDescriptor);
 
         BroadcastConnectedStream<JSONObject, TableProcessDim> connectDS = jsonObjDS.connect(broadcastDS);
 
-        SingleOutputStreamOperator<Tuple2<JSONObject,TableProcessDim>> dimDS = connectDS
-                .process(new TableProcessFunction(mapStateDescriptor));
+        SingleOutputStreamOperator<Tuple2<JSONObject,TableProcessDim>> dimDS = connectDS.process(new TableProcessFunction(mapStateDescriptor));
 
         dimDS.print();
 

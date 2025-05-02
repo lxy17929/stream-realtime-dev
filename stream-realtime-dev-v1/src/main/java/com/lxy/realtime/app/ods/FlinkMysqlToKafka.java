@@ -23,6 +23,8 @@ public class FlinkMysqlToKafka {
         //todo 封装
         DataStreamSource<String> mysqlSource = env.fromSource(mySqlSource, WatermarkStrategy.noWatermarks(), "mysql_source");
 
+        mysqlSource.print();
+
         //todo sink到kafka
         mysqlSource.sinkTo(FlinkSinkUtil.getKafkaSink(Constant.TOPIC_DB));
 

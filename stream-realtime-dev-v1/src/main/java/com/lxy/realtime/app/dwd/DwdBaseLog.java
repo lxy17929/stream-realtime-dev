@@ -28,7 +28,7 @@ import java.util.Map;
 
 /**
  * @Package com.lxy.realtime.app.dwd.DwdBaseLog
- * @Author luoxinyu
+ * @Author xinyu.luo
  * @Date 2025/4/11 10:35
  * @description: DwdBaseLog
  */
@@ -153,11 +153,11 @@ public class DwdBaseLog {
                             JSONArray displayArr = jsonObj.getJSONArray("displays");
                             if (displayArr != null && !displayArr.isEmpty()) {
                                 for (int i = 0; i < displayArr.size(); i++) {
-                                    JSONObject dispalyJsonObj = displayArr.getJSONObject(i);
+                                    JSONObject displayJsonObj = displayArr.getJSONObject(i);
                                     JSONObject newDisplayJsonObj = new JSONObject();
                                     newDisplayJsonObj.put("common", commonJsonObj);
                                     newDisplayJsonObj.put("page", pageJsonObj);
-                                    newDisplayJsonObj.put("display", dispalyJsonObj);
+                                    newDisplayJsonObj.put("display", displayJsonObj);
                                     newDisplayJsonObj.put("ts", ts);
                                     ctx.output(displayTag, newDisplayJsonObj.toJSONString());
                                 }
