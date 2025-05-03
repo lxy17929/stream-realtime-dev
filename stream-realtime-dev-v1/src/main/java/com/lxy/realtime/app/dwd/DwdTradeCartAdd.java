@@ -9,7 +9,7 @@ import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
 /**
  * @Package com.lxy.realtime.app.dwd.DwdTradeCartAdd
- * @Author luoxinyu
+ * @Author xinyu。luo
  * @Date 2025/4/11 20:49
  * @description: DwdTradeCartAdd
  */
