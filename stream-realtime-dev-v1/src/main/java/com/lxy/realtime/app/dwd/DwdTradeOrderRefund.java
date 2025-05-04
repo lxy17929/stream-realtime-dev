@@ -35,7 +35,7 @@ public class DwdTradeOrderRefund {
                 "  `op` string, \n" +
                 "  ts_ms bigint " +
                 ")" + SQLUtil.getKafkaDDL(Constant.TOPIC_DB, Constant.TOPIC_DWD_INTERACTION_COMMENT_INFO));
-        tableEnv.executeSql("select * from topic_db").print();
+        //tableEnv.executeSql("select * from topic_db").print();
 
 
         tableEnv.executeSql("CREATE TABLE base_dic (\n" +
@@ -64,7 +64,7 @@ public class DwdTradeOrderRefund {
                         " where source['table'] = 'order_refund_info' " +
                         " and `op`='r' ");
         tableEnv.createTemporaryView("order_refund_info", orderRefundInfo);
-        orderRefundInfo.execute().print();
+        //orderRefundInfo.execute().print();
 
         // 3. 过滤订单表中的退单数据: order_info  update
         Table orderInfo = tableEnv.sqlQuery(
@@ -98,7 +98,7 @@ public class DwdTradeOrderRefund {
                         "  from order_refund_info ri " +
                         "  join order_info oi " +
                         "  on ri.order_id=oi.id ");
-        //result.execute().print();
+        result.execute().print();
 
         // 5. 写出到 kafka
         tableEnv.executeSql(

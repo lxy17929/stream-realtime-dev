@@ -62,7 +62,7 @@ public class DwdTradeRefundPaySucDetail {
                         " and `after`['refund_status'] is not null " +
                         " and `after`['refund_status']='1602'");
         tableEnv.createTemporaryView("refund_payment", refundPayment);
-        refundPayment.execute().print();
+        //refundPayment.execute().print();
 
         // 4. 过滤退单表中的退单成功的数据
         Table orderRefundInfo = tableEnv.sqlQuery(
@@ -76,7 +76,7 @@ public class DwdTradeRefundPaySucDetail {
                         " and `after`['refund_status'] is not null " +
                         " and `after`['refund_status']='0705'");
         tableEnv.createTemporaryView("order_refund_info", orderRefundInfo);
-        orderRefundInfo.execute().print();
+        //orderRefundInfo.execute().print();
 
         // 5. 过滤订单表中的退款成功的数据
         Table orderInfo = tableEnv.sqlQuery(
@@ -90,7 +90,7 @@ public class DwdTradeRefundPaySucDetail {
                         "and `after`['order_status'] is not null " +
                         "and `after`['order_status']='1006'");
         tableEnv.createTemporaryView("order_info", orderInfo);
-        orderInfo.execute().print();
+        //orderInfo.execute().print();
 
         // 6. 4 张表的 join
         Table result = tableEnv.sqlQuery(
@@ -120,7 +120,6 @@ public class DwdTradeRefundPaySucDetail {
                 " order_id string," +
                 " sku_id string," +
                 " province_id string," +
-
                 " payment_type_code string," +
                 " date_id string," +
                 " callback_time string," +
