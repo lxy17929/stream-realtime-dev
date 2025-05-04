@@ -7,8 +7,6 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.table.api.Table;
 import org.apache.flink.table.api.bridge.java.StreamTableEnvironment;
 
-import java.time.Duration;
-
 /**
  * @Package com.lxy.realtime.app.dwd.DwdTradeOrderDetail
  * @Author xinyu.luo
@@ -28,7 +26,7 @@ public class DwdTradeOrderDetail {
 
         env.enableCheckpointing(5000L, CheckpointingMode.EXACTLY_ONCE);
 
-        tableEnv.getConfig().setIdleStateRetention(Duration.ofSeconds(30 * 60 + 5));
+        //tableEnv.getConfig().setIdleStateRetention(Duration.ofSeconds(30 * 60 + 5));
 
         tableEnv.executeSql("CREATE TABLE topic_db (\n" +
                 "  after MAP<string, string>, \n" +
@@ -36,7 +34,7 @@ public class DwdTradeOrderDetail {
                 "  `op` string, \n" +
                 "  ts_ms bigint " +
                 ")" + SQLUtil.getKafkaDDL(Constant.TOPIC_DB, Constant.TOPIC_DWD_INTERACTION_COMMENT_INFO));
-//        tableEnv.executeSql("select * from topic_db").print();
+        //tableEnv.executeSql("select * from topic_db").print();
 
 
         tableEnv.executeSql("CREATE TABLE base_dic (\n" +
@@ -45,9 +43,9 @@ public class DwdTradeOrderDetail {
                 " PRIMARY KEY (dic_code) NOT ENFORCED\n" +
                 ") " + SQLUtil.getHBaseDDL("dim_base_dic")
         );
-//        tableEnv.executeSql("select * from base_dic").print();
+        //tableEnv.executeSql("select * from base_dic").print();
 
-//TODO 过滤出订单明细数据
+        //TODO 过滤出订单明细数据
         Table orderDetail = tableEnv.sqlQuery(
                 "select " +
                         "  after['id'] as id," +
@@ -68,7 +66,7 @@ public class DwdTradeOrderDetail {
                         "  where source['table'] = 'order_detail' " +
                         "  and `op`='r' ");
         tableEnv.createTemporaryView("order_detail", orderDetail);
-//        orderDetail.execute().print();
+        //orderDetail.execute().print();
 
         //TODO 过滤出订单数据
         Table orderInfo = tableEnv.sqlQuery(
@@ -80,7 +78,7 @@ public class DwdTradeOrderDetail {
                         "  where source['table'] = 'order_info' " +
                         "  and `op`='r' ");
         tableEnv.createTemporaryView("order_info", orderInfo);
-//        orderInfo.execute().print();
+        //orderInfo.execute().print();
 
         //TODO 过滤出明细活动数据
         Table orderDetailActivity = tableEnv.sqlQuery(
@@ -92,7 +90,7 @@ public class DwdTradeOrderDetail {
                         "  where source['table'] = 'order_detail_activity' " +
                         "  and `op` = 'r' ");
         tableEnv.createTemporaryView("order_detail_activity", orderDetailActivity);
-//        orderDetailActivity.execute().print();
+        //orderDetailActivity.execute().print();
 
         //TODO 过滤出明细优惠券数据
         Table orderDetailCoupon = tableEnv.sqlQuery(
@@ -103,7 +101,7 @@ public class DwdTradeOrderDetail {
                         "  where source['table'] = 'order_detail_coupon' " +
                         "  and `op` = 'r' ");
         tableEnv.createTemporaryView("order_detail_coupon", orderDetailCoupon);
-//        orderDetailCoupon.execute().print();
+        //orderDetailCoupon.execute().print();
 
         //TODO 关联上述4张表
         Table result = tableEnv.sqlQuery(
@@ -131,7 +129,7 @@ public class DwdTradeOrderDetail {
                         "  on od.id = act.order_detail_id " +
                         "  left join order_detail_coupon cou " +
                         "  on od.id = cou.order_detail_id ");
-//        result.execute().print();
+        result.execute().print();
 
         //TODO 将关联的结果写到Kafka主题
         //创建动态表和要写入的主题进行映射
@@ -147,7 +145,7 @@ public class DwdTradeOrderDetail {
                         "activity_rule_id string," +
                         "coupon_id string," +
                         "date_id string," +
-                        "create_time string," +
+                        "create_time string,"  +
                         "sku_num string," +
                         "split_original_amount string," +
                         "split_activity_amount string," +

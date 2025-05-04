@@ -27,7 +27,7 @@ public class DwdTradeOrderRefund {
 
         env.enableCheckpointing(5000L, CheckpointingMode.EXACTLY_ONCE);
 
-        tableEnv.getConfig().setIdleStateRetention(Duration.ofSeconds(30 * 60 + 5));
+        //tableEnv.getConfig().setIdleStateRetention(Duration.ofSeconds(30 * 60 + 5));
 
         tableEnv.executeSql("CREATE TABLE topic_db (\n" +
                 "  after MAP<string, string>, \n" +
@@ -35,7 +35,7 @@ public class DwdTradeOrderRefund {
                 "  `op` string, \n" +
                 "  ts_ms bigint " +
                 ")" + SQLUtil.getKafkaDDL(Constant.TOPIC_DB, Constant.TOPIC_DWD_INTERACTION_COMMENT_INFO));
-//        tableEnv.executeSql("select * from topic_db").print();
+        tableEnv.executeSql("select * from topic_db").print();
 
 
         tableEnv.executeSql("CREATE TABLE base_dic (\n" +
@@ -44,7 +44,7 @@ public class DwdTradeOrderRefund {
                 " PRIMARY KEY (dic_code) NOT ENFORCED\n" +
                 ") " + SQLUtil.getHBaseDDL("dim_base_dic")
         );
-//        tableEnv.executeSql("select * from base_dic").print();
+        //tableEnv.executeSql("select * from base_dic").print();
 
         // 2. 过滤退单表数据 order_refund_info   insert
         Table orderRefundInfo = tableEnv.sqlQuery(
@@ -64,7 +64,7 @@ public class DwdTradeOrderRefund {
                         " where source['table'] = 'order_refund_info' " +
                         " and `op`='r' ");
         tableEnv.createTemporaryView("order_refund_info", orderRefundInfo);
-//        orderRefundInfo.execute().print();
+        orderRefundInfo.execute().print();
 
         // 3. 过滤订单表中的退单数据: order_info  update
         Table orderInfo = tableEnv.sqlQuery(
@@ -77,7 +77,7 @@ public class DwdTradeOrderRefund {
                         " and `after`['order_status'] is not null " +
                         " and `after`['order_status'] = '1006' ");
         tableEnv.createTemporaryView("order_info", orderInfo);
-//        orderInfo.execute().print();
+        //orderInfo.execute().print();
 
         // 4. join: 普通的和 lookup join
         Table result = tableEnv.sqlQuery(
@@ -98,7 +98,7 @@ public class DwdTradeOrderRefund {
                         "  from order_refund_info ri " +
                         "  join order_info oi " +
                         "  on ri.order_id=oi.id ");
-//        result.execute().print();
+        //result.execute().print();
 
         // 5. 写出到 kafka
         tableEnv.executeSql(

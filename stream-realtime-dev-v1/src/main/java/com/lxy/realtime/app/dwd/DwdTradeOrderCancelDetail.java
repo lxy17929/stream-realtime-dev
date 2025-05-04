@@ -57,7 +57,7 @@ public class DwdTradeOrderCancelDetail {
                 " and `after`['order_status'] = '1001' " +
                 " or `after`['order_status'] = '1003' ");
         tableEnv.createTemporaryView("order_cancel", orderCancel);
-        orderCancel.execute().print();
+        //orderCancel.execute().print();
 
 
         //TODO 从下单事实表中获取下单数据
