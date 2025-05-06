@@ -52,13 +52,13 @@ public class FlinkSinkUtil {
         return kafkaSink;
     }
     //扩展：如果流中数据类型不确定，如果将数据写到kafka主题
-    public static <T>KafkaSink<T> getKafkaSink(KafkaRecordSerializationSchema<T> ksr){
+    /*public static <T>KafkaSink<T> getKafkaSink(KafkaRecordSerializationSchema<T> ksr){
         KafkaSink<T> kafkaSink = KafkaSink.<T>builder()
                 .setBootstrapServers(Constant.KAFKA_BROKERS)
                 .setRecordSerializer(ksr)
                 .build();
         return kafkaSink;
-    }
+    }*/
 
     //获取DorisSink
     public static DorisSink<String> getDorisSink(String tableName){

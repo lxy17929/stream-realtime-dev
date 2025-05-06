@@ -2,6 +2,8 @@ package com.lxy.realtime.app.dws;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.lxy.realtime.function.CartAddUuWindowFunction;
+import com.lxy.realtime.function.SerializableFunction;
 import com.realtime.common.bean.CartAddUuBean;
 import com.realtime.common.function.BeanToJsonStrMapFunction;
 import com.realtime.common.utils.DateFormatUtil;
@@ -9,10 +11,8 @@ import com.realtime.common.utils.FlinkSinkUtil;
 import com.realtime.common.utils.FlinkSourceUtil;
 import lombok.SneakyThrows;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.AggregateFunction;
-import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.state.StateTtlConfig;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
@@ -26,7 +26,6 @@ import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
-import org.apache.flink.streaming.api.functions.windowing.AllWindowFunction;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
@@ -48,29 +47,22 @@ public class DwsTradeCartAddUuWindow {
 
         env.enableCheckpointing(5000L, CheckpointingMode.EXACTLY_ONCE);
 
-        env.setRestartStrategy(RestartStrategies.fixedDelayRestart(3,3000L));
+        //env.setRestartStrategy(RestartStrategies.fixedDelayRestart(3,3000L));
 
         KafkaSource<String> kafkaSource = FlinkSourceUtil.getKafkaSource("dwd_trade_cart_add", "dws_trade_cart_add_uu_window");
 
-        DataStreamSource<String> kafkaStrDS
-                = env.fromSource(kafkaSource, WatermarkStrategy.noWatermarks(), "Kafka_Source");
+        DataStreamSource<String> kafkaStrDS = env.fromSource(kafkaSource, WatermarkStrategy.noWatermarks(), "Kafka_Source");
 
         SingleOutputStreamOperator<JSONObject> jsonObjDS = kafkaStrDS.map(JSON::parseObject);
 
         SingleOutputStreamOperator<JSONObject> withWatermarkDS = jsonObjDS.assignTimestampsAndWatermarks(
                 WatermarkStrategy
                         .<JSONObject>forMonotonousTimestamps()
-                        .withTimestampAssigner(
-                                new SerializableTimestampAssigner<JSONObject>() {
-                                    @Override
-                                    public long extractTimestamp(JSONObject jsonObj, long recordTimestamp) {
-                                        return jsonObj.getLong("ts_ms") * 1000;
-                                    }
-                                }
-                        )
+                        .withTimestampAssigner(new SerializableFunction())
         );
 
         KeyedStream<JSONObject, String> keyedDS = withWatermarkDS.keyBy(jsonObj -> jsonObj.getString("user_id"));
+        //keyedDS.print();
 
         SingleOutputStreamOperator<JSONObject> cartUUDS = keyedDS.process(
                 new KeyedProcessFunction<String, JSONObject, JSONObject>() {
@@ -78,8 +70,7 @@ public class DwsTradeCartAddUuWindow {
 
                     @Override
                     public void open(Configuration parameters) {
-                        ValueStateDescriptor<String> valueStateDescriptor
-                                = new ValueStateDescriptor<>("lastCartDateState", String.class);
+                        ValueStateDescriptor<String> valueStateDescriptor = new ValueStateDescriptor<>("lastCartDateState", String.class);
                         valueStateDescriptor.enableTimeToLive(StateTtlConfig.newBuilder(Time.days(1)).build());
                         lastCartDateState = getRuntimeContext().getState(valueStateDescriptor);
                     }
@@ -98,9 +89,9 @@ public class DwsTradeCartAddUuWindow {
                     }
                 }
         );
+        //cartUUDS.print();
 
-        AllWindowedStream<JSONObject, TimeWindow> windowDS = cartUUDS
-                .windowAll(TumblingEventTimeWindows.of(org.apache.flink.streaming.api.windowing.time.Time.seconds(2)));
+        AllWindowedStream<JSONObject, TimeWindow> windowDS = cartUUDS.windowAll(TumblingEventTimeWindows.of(org.apache.flink.streaming.api.windowing.time.Time.seconds(2)));
 
         SingleOutputStreamOperator<CartAddUuBean> aggregateDS = windowDS.aggregate(
                 new AggregateFunction<JSONObject, Long, Long>() {
@@ -123,28 +114,10 @@ public class DwsTradeCartAddUuWindow {
                     public Long merge(Long a, Long b) {
                         return null;
                     }
-                },
-                new AllWindowFunction<Long, CartAddUuBean, TimeWindow>() {
-                    @Override
-                    public void apply(TimeWindow window, Iterable<Long> values, Collector<CartAddUuBean> out) {
-                        Long cartUUCt = values.iterator().next();
-                        long startTs = window.getStart() / 1000;
-                        long endTs = window.getEnd() / 1000;
-                        String stt = DateFormatUtil.tsToDateTime(startTs);
-                        String edt = DateFormatUtil.tsToDateTime(endTs);
-                        String curDate = DateFormatUtil.tsToDate(startTs);
-                        out.collect(new CartAddUuBean(
-                                stt,
-                                edt,
-                                curDate,
-                                cartUUCt
-                        ));
-                    }
-                }
-        );
+                },new CartAddUuWindowFunction());
+        //aggregateDS.print();
 
-        SingleOutputStreamOperator<String> operator = aggregateDS
-                .map(new BeanToJsonStrMapFunction<>());
+        SingleOutputStreamOperator<String> operator = aggregateDS.map(new BeanToJsonStrMapFunction<>());
 
         operator.print();
 

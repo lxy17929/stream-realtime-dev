@@ -129,9 +129,8 @@ public class DwdTradeRefundPaySucDetail {
                 " PRIMARY KEY (id) NOT ENFORCED " +
                 ")" + SQLUtil.getUpsertKafkaDDL(Constant.TOPIC_DWD_TRADE_REFUND_PAYMENT_SUCCESS));
         result.executeInsert(Constant.TOPIC_DWD_TRADE_REFUND_PAYMENT_SUCCESS);
-        
-        env.execute("DwdTradeRefundPaySucDetail");
 
-
+        env.disableOperatorChaining();
+        //env.execute("DwdTradeRefundPaySucDetail");
     }
 }

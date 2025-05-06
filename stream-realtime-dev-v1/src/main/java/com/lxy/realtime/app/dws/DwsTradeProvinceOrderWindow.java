@@ -2,16 +2,16 @@ package com.lxy.realtime.app.dws;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.lxy.realtime.function.ProvinceOrderWindowFunction;
+import com.lxy.realtime.function.ProvinceOrderWindowReduceFunction;
+import com.lxy.realtime.function.SerializableFunction;
+import com.lxy.realtime.function.TradeProvinceOrderWindowFunction;
 import com.realtime.common.bean.TradeProvinceOrderBean;
 import com.realtime.common.function.BeanToJsonStrMapFunction;
 import com.realtime.common.function.DimAsyncFunction;
-import com.realtime.common.utils.DateFormatUtil;
 import com.realtime.common.utils.FlinkSinkUtil;
 import com.realtime.common.utils.FlinkSourceUtil;
-import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.state.StateTtlConfig;
 import org.apache.flink.api.common.state.ValueState;
@@ -24,14 +24,10 @@ import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.KeyedProcessFunction;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 
-import java.math.BigDecimal;
-import java.util.Collections;
-import java.util.HashSet;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -69,7 +65,7 @@ public class DwsTradeProvinceOrderWindow {
         );
 
         KeyedStream<JSONObject, String> orderDetailIdKeyedDS = jsonObjDS.keyBy(jsonObj -> jsonObj.getString("id"));
-        //orderDetailIdKeyedDS.print();
+        orderDetailIdKeyedDS.print();
 
         SingleOutputStreamOperator<JSONObject> distinctDS = orderDetailIdKeyedDS.process(
                 new KeyedProcessFunction<String, JSONObject, JSONObject>() {
@@ -100,34 +96,11 @@ public class DwsTradeProvinceOrderWindow {
         SingleOutputStreamOperator<JSONObject> withWatermarkDS = distinctDS.assignTimestampsAndWatermarks(
                 WatermarkStrategy
                         .<JSONObject>forMonotonousTimestamps()
-                        .withTimestampAssigner(
-                                new SerializableTimestampAssigner<JSONObject>() {
-                                    @Override
-                                    public long extractTimestamp(JSONObject jsonObj, long recordTimestamp) {
-                                        return jsonObj.getLong("ts_ms") * 1000;
-                                    }
-                                }
-                        )
+                        .withTimestampAssigner(new SerializableFunction())
         );
         //withWatermarkDS.print();
 
-        SingleOutputStreamOperator<TradeProvinceOrderBean> beanDS = withWatermarkDS.map(
-                new MapFunction<JSONObject, TradeProvinceOrderBean>() {
-                    @Override
-                    public TradeProvinceOrderBean map(JSONObject jsonObj) {
-                        String provinceId = jsonObj.getString("province_id");
-                        BigDecimal splitTotalAmount = jsonObj.getBigDecimal("split_total_amount");
-                        Long ts = jsonObj.getLong("ts_ms");
-                        String orderId = jsonObj.getString("order_id");
-                        return TradeProvinceOrderBean.builder()
-                                .provinceId(provinceId)
-                                .orderAmount(splitTotalAmount)
-                                .orderIdSet(new HashSet<>(Collections.singleton(orderId)))
-                                .ts_ms(ts)
-                                .build();
-                    }
-                }
-        );
+        SingleOutputStreamOperator<TradeProvinceOrderBean> beanDS = withWatermarkDS.map(new ProvinceOrderWindowFunction());
 
         beanDS.print();
 
@@ -136,34 +109,9 @@ public class DwsTradeProvinceOrderWindow {
         WindowedStream<TradeProvinceOrderBean, String, TimeWindow> windowDS = provinceIdKeyedDS
                 .window(TumblingEventTimeWindows.of(org.apache.flink.streaming.api.windowing.time.Time.seconds(4)));
 
-        SingleOutputStreamOperator<TradeProvinceOrderBean> reduceDS = windowDS.reduce(
-                new ReduceFunction<TradeProvinceOrderBean>() {
-                    @Override
-                    public TradeProvinceOrderBean reduce(TradeProvinceOrderBean value1, TradeProvinceOrderBean value2) {
-                        value1.setOrderAmount(value1.getOrderAmount().add(value2.getOrderAmount()));
-                        value1.getOrderIdSet().addAll(value2.getOrderIdSet());
-                        return value1;
-                    }
-                },
-                new WindowFunction<TradeProvinceOrderBean, TradeProvinceOrderBean, String, TimeWindow>() {
-                    @Override
-                    public void apply(String s, TimeWindow window, Iterable<TradeProvinceOrderBean> input, Collector<TradeProvinceOrderBean> out) {
-                        TradeProvinceOrderBean orderBean = input.iterator().next();
-                        long startTs = window.getStart() / 1000;
-                        long endTs = window.getEnd() / 1000;
-                        String stt = DateFormatUtil.tsToDateTime(startTs);
-                        String edt = DateFormatUtil.tsToDateTime(endTs);
-                        String curDate = DateFormatUtil.tsToDate(startTs);
-                        orderBean.setStt(stt);
-                        orderBean.setEdt(edt);
-                        orderBean.setCurDate(curDate);
-                        orderBean.setOrderCount((long) orderBean.getOrderIdSet().size());
-                        out.collect(orderBean);
-                    }
-                }
-        );
+        SingleOutputStreamOperator<TradeProvinceOrderBean> reduceDS = windowDS.reduce(new ProvinceOrderWindowReduceFunction(),new TradeProvinceOrderWindowFunction());
 
-//        reduceDS.print();
+        //reduceDS.print();
 
         SingleOutputStreamOperator<TradeProvinceOrderBean> withProvinceDS = AsyncDataStream.unorderedWait(
                 reduceDS,
@@ -188,7 +136,7 @@ public class DwsTradeProvinceOrderWindow {
         );
 
         SingleOutputStreamOperator<String> sink = withProvinceDS.map(new BeanToJsonStrMapFunction<>());
-        sink.print();
+        //sink.print();
 
         sink.sinkTo(FlinkSinkUtil.getDorisSink("dws_trade_province_order_window"));
 

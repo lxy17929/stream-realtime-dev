@@ -133,6 +133,7 @@ public class DwdTradeOrderPaySucDetail {
 
         result.executeInsert(Constant.TOPIC_DWD_TRADE_ORDER_PAYMENT_SUCCESS);
 
-        env.execute("DwdTradeOrderPaySucDetail");
+        env.disableOperatorChaining();
+        //env.execute("DwdTradeOrderPaySucDetail");
     }
 }
