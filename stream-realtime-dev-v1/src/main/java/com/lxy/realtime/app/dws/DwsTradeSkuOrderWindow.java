@@ -2,16 +2,16 @@ package com.lxy.realtime.app.dws;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.lxy.realtime.function.SerializableFunction;
+import com.lxy.realtime.function.SkuOrderWindowMapFunction;
+import com.lxy.realtime.function.SkuOrderWindowReduceFunction;
 import com.realtime.common.bean.TradeSkuOrderBean;
 import com.realtime.common.function.BeanToJsonStrMapFunction;
 import com.realtime.common.function.DimAsyncFunction;
 import com.realtime.common.utils.DateFormatUtil;
 import com.realtime.common.utils.FlinkSinkUtil;
 import com.realtime.common.utils.FlinkSourceUtil;
-import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.functions.MapFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
@@ -27,7 +27,6 @@ import org.apache.flink.streaming.api.windowing.assigners.TumblingProcessingTime
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
 import org.apache.flink.util.Collector;
 
-import java.math.BigDecimal;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -112,44 +111,12 @@ public class DwsTradeSkuOrderWindow {
         SingleOutputStreamOperator<JSONObject> withWatermarkDS = distinctDS.assignTimestampsAndWatermarks(
                 WatermarkStrategy
                         .<JSONObject>forMonotonousTimestamps()
-                        .withTimestampAssigner(
-                                new SerializableTimestampAssigner<JSONObject>() {
-                                    @Override
-                                    public long extractTimestamp(JSONObject jsonObj, long recordTimestamp) {
-                                        return jsonObj.getLong("ts_ms") * 1000;
-                                    }
-                                }
-                        )
+                        .withTimestampAssigner(new SerializableFunction())
         );
 
 //        withWatermarkDS.print();
 
-        SingleOutputStreamOperator<TradeSkuOrderBean> beanDS = withWatermarkDS.map(
-                new MapFunction<JSONObject, TradeSkuOrderBean>() {
-                    @Override
-                    public TradeSkuOrderBean map(JSONObject jsonObj) {
-                        //{"create_time":"2024-06-11 10:54:40","sku_num":"1","activity_rule_id":"5","split_original_amount":"11999.0000",
-                        // "split_coupon_amount":"0.0","sku_id":"19","date_id":"2024-06-11","user_id":"2998","province_id":"32",
-                        // "activity_id":"4","sku_name":"TCL","id":"15183","order_id":"10788","split_activity_amount":"1199.9",
-                        // "split_total_amount":"10799.1","ts":1718160880}
-
-                        String skuId = jsonObj.getString("sku_id");
-                        BigDecimal splitOriginalAmount = jsonObj.getBigDecimal("split_original_amount");
-                        BigDecimal splitCouponAmount = jsonObj.getBigDecimal("split_coupon_amount");
-                        BigDecimal splitActivityAmount = jsonObj.getBigDecimal("split_activity_amount");
-                        BigDecimal splitTotalAmount = jsonObj.getBigDecimal("split_total_amount");
-                        Long ts = jsonObj.getLong("ts_ms") * 1000;
-                        return TradeSkuOrderBean.builder()
-                                .skuId(skuId)
-                                .originalAmount(splitOriginalAmount)
-                                .couponReduceAmount(splitCouponAmount)
-                                .activityReduceAmount(splitActivityAmount)
-                                .orderAmount(splitTotalAmount)
-                                .ts_ms(ts)
-                                .build();
-                    }
-                }
-        );
+        SingleOutputStreamOperator<TradeSkuOrderBean> beanDS = withWatermarkDS.map(new SkuOrderWindowMapFunction());
 
 //        beanDS.print();
 
@@ -164,17 +131,7 @@ public class DwsTradeSkuOrderWindow {
                         .of(org.apache.flink.streaming.api.windowing.time.Time.seconds(10)));
 
         //TODO 8.聚合
-        SingleOutputStreamOperator<TradeSkuOrderBean> reduceDS = windowDS.reduce(
-                new ReduceFunction<TradeSkuOrderBean>() {
-                    @Override
-                    public TradeSkuOrderBean reduce(TradeSkuOrderBean value1, TradeSkuOrderBean value2) {
-                        value1.setOriginalAmount(value1.getOriginalAmount().add(value2.getOriginalAmount()));
-                        value1.setActivityReduceAmount(value1.getActivityReduceAmount().add(value2.getActivityReduceAmount()));
-                        value1.setCouponReduceAmount(value1.getCouponReduceAmount().add(value2.getCouponReduceAmount()));
-                        value1.setOrderAmount(value1.getOrderAmount().add(value2.getOrderAmount()));
-                        return value1;
-                    }
-                },
+        SingleOutputStreamOperator<TradeSkuOrderBean> reduceDS = windowDS.reduce(new SkuOrderWindowReduceFunction(),
                 new ProcessWindowFunction<TradeSkuOrderBean, TradeSkuOrderBean, String, TimeWindow>() {
                     @Override
                     public void process(String s, ProcessWindowFunction<TradeSkuOrderBean, TradeSkuOrderBean, String, TimeWindow>.Context context, Iterable<TradeSkuOrderBean> elements, Collector<TradeSkuOrderBean> out) {

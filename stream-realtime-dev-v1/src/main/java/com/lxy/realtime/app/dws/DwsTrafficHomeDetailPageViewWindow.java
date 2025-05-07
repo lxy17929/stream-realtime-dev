@@ -2,16 +2,16 @@ package com.lxy.realtime.app.dws;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.lxy.realtime.function.SerializableFunction;
+import com.lxy.realtime.function.TrafficHomeDetailPaegViewReduceFunction;
+import com.lxy.realtime.function.TrafficHomeDetailPageViewFilterFunction;
 import com.realtime.common.bean.TrafficHomeDetailPageViewBean;
 import com.realtime.common.function.BeanToJsonStrMapFunction;
 import com.realtime.common.utils.DateFormatUtil;
 import com.realtime.common.utils.FlinkSinkUtil;
 import com.realtime.common.utils.FlinkSourceUtil;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
-import org.apache.flink.api.common.functions.FilterFunction;
-import org.apache.flink.api.common.functions.ReduceFunction;
 import org.apache.flink.api.common.state.StateTtlConfig;
 import org.apache.flink.api.common.state.ValueState;
 import org.apache.flink.api.common.state.ValueStateDescriptor;
@@ -53,28 +53,13 @@ public class DwsTrafficHomeDetailPageViewWindow {
         //TODO 1.对流中数据类型进行转换   jsonStr->jsonObj
         SingleOutputStreamOperator<JSONObject> jsonObjDS = kafkaStrDS.map(JSON::parseObject);
         //TODO 2.过滤首页以及详情页
-        SingleOutputStreamOperator<JSONObject> filterDS = jsonObjDS.filter(
-                new FilterFunction<JSONObject>() {
-                    @Override
-                    public boolean filter(JSONObject jsonObj) {
-                        String pageId = jsonObj.getJSONObject("page").getString("page_id");
-                        return "home".equals(pageId) || "good_detail".equals(pageId);
-                    }
-                }
-        );
+        SingleOutputStreamOperator<JSONObject> filterDS = jsonObjDS.filter(new TrafficHomeDetailPageViewFilterFunction());
         //filterDS.print();
         //TODO 3.指定Watermark的生成策略以及提取事件时间字段
         SingleOutputStreamOperator<JSONObject> withWatermarkDS = filterDS.assignTimestampsAndWatermarks(
                 WatermarkStrategy
                         .<JSONObject>forMonotonousTimestamps()
-                        .withTimestampAssigner(
-                                new SerializableTimestampAssigner<JSONObject>() {
-                                    @Override
-                                    public long extractTimestamp(JSONObject jsonObj, long recordTimestamp) {
-                                        return jsonObj.getLong("ts");
-                                    }
-                                }
-                        )
+                        .withTimestampAssigner(new SerializableFunction())
         );
         //TODO 4.按照mid进行分组
         KeyedStream<JSONObject, String> keyedDS = withWatermarkDS.keyBy(jsonObj -> jsonObj.getJSONObject("common").getString("mid"));
@@ -137,15 +122,7 @@ public class DwsTrafficHomeDetailPageViewWindow {
         AllWindowedStream<TrafficHomeDetailPageViewBean, TimeWindow> windowDS = beanDS
                 .windowAll(TumblingEventTimeWindows.of(org.apache.flink.streaming.api.windowing.time.Time.seconds(10)));
         //TODO 7.聚合
-        SingleOutputStreamOperator<TrafficHomeDetailPageViewBean> reduceDS = windowDS.reduce(
-                new ReduceFunction<TrafficHomeDetailPageViewBean>() {
-                    @Override
-                    public TrafficHomeDetailPageViewBean reduce(TrafficHomeDetailPageViewBean value1, TrafficHomeDetailPageViewBean value2) {
-                        value1.setHomeUvCt(value1.getHomeUvCt() + value2.getHomeUvCt());
-                        value1.setGoodDetailUvCt(value1.getGoodDetailUvCt() + value2.getGoodDetailUvCt());
-                        return value1;
-                    }
-                },
+        SingleOutputStreamOperator<TrafficHomeDetailPageViewBean> reduceDS = windowDS.reduce(new TrafficHomeDetailPaegViewReduceFunction(),
                 new ProcessAllWindowFunction<TrafficHomeDetailPageViewBean, TrafficHomeDetailPageViewBean, TimeWindow>() {
                     @Override
                     public void process(ProcessAllWindowFunction<TrafficHomeDetailPageViewBean, TrafficHomeDetailPageViewBean, TimeWindow>.Context context, Iterable<TrafficHomeDetailPageViewBean> elements, Collector<TrafficHomeDetailPageViewBean> out) {

@@ -11,6 +11,7 @@
     <modules>
         <module>stream-realtime-dev-v1</module>
         <module>realtime-common</module>
+        <module>stream-realtime_dev_sensitive_word</module>
     </modules>
 
 
