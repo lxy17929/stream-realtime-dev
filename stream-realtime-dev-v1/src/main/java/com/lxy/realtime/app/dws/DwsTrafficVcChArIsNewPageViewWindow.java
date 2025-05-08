@@ -30,7 +30,6 @@ import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.windowing.WindowFunction;
 import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows;
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow;
-import org.apache.flink.util.Collector;
 
 /**
  * @Package import com.alibaba.fastjson.JSONObject;.DwsTrafficVcChArIsNewPageViewWindow
@@ -117,55 +116,39 @@ public class DwsTrafficVcChArIsNewPageViewWindow {
                 WatermarkStrategy
                         .<TrafficVcChArIsNewPageViewBean>forMonotonousTimestamps()
                         .withTimestampAssigner(
-                                new SerializableTimestampAssigner<TrafficVcChArIsNewPageViewBean>() {
-                                    @Override
-                                    public long extractTimestamp(TrafficVcChArIsNewPageViewBean bean, long recordTimestamp) {
-                                        return bean.getTs();
-                                    }
-                                }
+                                (SerializableTimestampAssigner<TrafficVcChArIsNewPageViewBean>) (bean, recordTimestamp) -> bean.getTs()
                         )
         );
 
 //        withWatermarkDS.print();
 
         KeyedStream<TrafficVcChArIsNewPageViewBean, Tuple4<String, String, String, String>> dimKeyedDS = withWatermarkDS.keyBy(
-                new KeySelector<TrafficVcChArIsNewPageViewBean, Tuple4<String, String, String, String>>() {
-                    @Override
-                    public Tuple4<String, String, String, String> getKey(TrafficVcChArIsNewPageViewBean bean) {
-                        return Tuple4.of(bean.getVc(),
-                                bean.getCh(),
-                                bean.getAr(),
-                                bean.getIsNew());
-                    }
-                }
+                (KeySelector<TrafficVcChArIsNewPageViewBean, Tuple4<String, String, String, String>>) bean -> Tuple4.of(bean.getVc(),
+                        bean.getCh(),
+                        bean.getAr(),
+                        bean.getIsNew())
         );
 
         WindowedStream<TrafficVcChArIsNewPageViewBean, Tuple4<String, String, String, String>, TimeWindow> windowDS
                 = dimKeyedDS.window(TumblingEventTimeWindows.of(org.apache.flink.streaming.api.windowing.time.Time.seconds(10)));
 
         SingleOutputStreamOperator<TrafficVcChArIsNewPageViewBean> reduceDS = windowDS.reduce(
-                new ReduceFunction<TrafficVcChArIsNewPageViewBean>() {
-                    @Override
-                    public TrafficVcChArIsNewPageViewBean reduce(TrafficVcChArIsNewPageViewBean value1, TrafficVcChArIsNewPageViewBean value2) {
-                        value1.setPvCt(value1.getPvCt() + value2.getPvCt());
-                        value1.setUvCt(value1.getUvCt() + value2.getUvCt());
-                        value1.setSvCt(value1.getSvCt() + value2.getSvCt());
-                        value1.setDurSum(value1.getDurSum() + value2.getDurSum());
-                        return value1;
-                    }
+                (ReduceFunction<TrafficVcChArIsNewPageViewBean>) (value1, value2) -> {
+                    value1.setPvCt(value1.getPvCt() + value2.getPvCt());
+                    value1.setUvCt(value1.getUvCt() + value2.getUvCt());
+                    value1.setSvCt(value1.getSvCt() + value2.getSvCt());
+                    value1.setDurSum(value1.getDurSum() + value2.getDurSum());
+                    return value1;
                 },
-                new WindowFunction<TrafficVcChArIsNewPageViewBean, TrafficVcChArIsNewPageViewBean, Tuple4<String, String, String, String>, TimeWindow>() {
-                    @Override
-                    public void apply(Tuple4<String, String, String, String> stringStringStringStringTuple4, TimeWindow window, Iterable<TrafficVcChArIsNewPageViewBean> input, Collector<TrafficVcChArIsNewPageViewBean> out) {
-                        TrafficVcChArIsNewPageViewBean pageViewBean = input.iterator().next();
-                        String stt = DateFormatUtil.tsToDateTime(window.getStart());
-                        String edt = DateFormatUtil.tsToDateTime(window.getEnd());
-                        String curDate = DateFormatUtil.tsToDate(window.getStart());
-                        pageViewBean.setStt(stt);
-                        pageViewBean.setEdt(edt);
-                        pageViewBean.setCur_date(curDate);
-                        out.collect(pageViewBean);
-                    }
+                (WindowFunction<TrafficVcChArIsNewPageViewBean, TrafficVcChArIsNewPageViewBean, Tuple4<String, String, String, String>, TimeWindow>) (stringStringStringStringTuple4, window, input, out) -> {
+                    TrafficVcChArIsNewPageViewBean pageViewBean = input.iterator().next();
+                    String stt = DateFormatUtil.tsToDateTime(window.getStart());
+                    String edt = DateFormatUtil.tsToDateTime(window.getEnd());
+                    String curDate = DateFormatUtil.tsToDate(window.getStart());
+                    pageViewBean.setStt(stt);
+                    pageViewBean.setEdt(edt);
+                    pageViewBean.setCur_date(curDate);
+                    out.collect(pageViewBean);
                 }
         );
 

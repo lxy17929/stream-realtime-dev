@@ -58,14 +58,11 @@ public class DwsUserUserLoginWindow {
 //        jsonObjDS.print();
 
         SingleOutputStreamOperator<JSONObject> filterDS = jsonObjDS.filter(
-                new FilterFunction<JSONObject>() {
-                    @Override
-                    public boolean filter(JSONObject jsonObj) {
-                        String uid = jsonObj.getJSONObject("common").getString("uid");
-                        String lastPageId = jsonObj.getJSONObject("page").getString("last_page_id");
-                        return StringUtils.isNotEmpty(uid)
-                                && ("login".equals(lastPageId) || StringUtils.isEmpty(lastPageId));
-                    }
+                (FilterFunction<JSONObject>) jsonObj -> {
+                    String uid = jsonObj.getJSONObject("common").getString("uid");
+                    String lastPageId = jsonObj.getJSONObject("page").getString("last_page_id");
+                    return StringUtils.isNotEmpty(uid)
+                            && ("login".equals(lastPageId) || StringUtils.isEmpty(lastPageId));
                 }
         );
 
@@ -75,12 +72,7 @@ public class DwsUserUserLoginWindow {
                 WatermarkStrategy
                         .<JSONObject>forMonotonousTimestamps()
                         .withTimestampAssigner(
-                                new SerializableTimestampAssigner<JSONObject>() {
-                                    @Override
-                                    public long extractTimestamp(JSONObject jsonObj, long recordTimestamp) {
-                                        return jsonObj.getLong("ts");
-                                    }
-                                }
+                                (SerializableTimestampAssigner<JSONObject>) (jsonObj, recordTimestamp) -> jsonObj.getLong("ts")
                         )
         );
 
@@ -133,26 +125,20 @@ public class DwsUserUserLoginWindow {
         AllWindowedStream<UserLoginBean, TimeWindow> windowDS = beanDS.windowAll(TumblingEventTimeWindows.of(Time.seconds(10)));
 
         SingleOutputStreamOperator<UserLoginBean> reduceDS = windowDS.reduce(
-                new ReduceFunction<UserLoginBean>() {
-                    @Override
-                    public UserLoginBean reduce(UserLoginBean value1, UserLoginBean value2) {
-                        value1.setUuCt(value1.getUuCt() + value2.getUuCt());
-                        value1.setBackCt(value1.getBackCt() + value2.getBackCt());
-                        return value1;
-                    }
+                (ReduceFunction<UserLoginBean>) (value1, value2) -> {
+                    value1.setUuCt(value1.getUuCt() + value2.getUuCt());
+                    value1.setBackCt(value1.getBackCt() + value2.getBackCt());
+                    return value1;
                 },
-                new AllWindowFunction<UserLoginBean, UserLoginBean, TimeWindow>() {
-                    @Override
-                    public void apply(TimeWindow window, Iterable<UserLoginBean> values, Collector<UserLoginBean> out) {
-                        UserLoginBean bean = values.iterator().next();
-                        String stt = DateFormatUtil.tsToDateTime(window.getStart());
-                        String edt = DateFormatUtil.tsToDateTime(window.getEnd());
-                        String curDate = DateFormatUtil.tsToDate(window.getStart());
-                        bean.setStt(stt);
-                        bean.setEdt(edt);
-                        bean.setCurDate(curDate);
-                        out.collect(bean);
-                    }
+                (AllWindowFunction<UserLoginBean, UserLoginBean, TimeWindow>) (window, values, out) -> {
+                    UserLoginBean bean = values.iterator().next();
+                    String stt = DateFormatUtil.tsToDateTime(window.getStart());
+                    String edt = DateFormatUtil.tsToDateTime(window.getEnd());
+                    String curDate = DateFormatUtil.tsToDate(window.getStart());
+                    bean.setStt(stt);
+                    bean.setEdt(edt);
+                    bean.setCurDate(curDate);
+                    out.collect(bean);
                 }
         );
 
