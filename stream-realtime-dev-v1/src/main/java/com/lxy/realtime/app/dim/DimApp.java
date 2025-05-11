@@ -73,7 +73,7 @@ public class DimApp {
 
         //jsonObjDS.print();
 
-        MySqlSource<String> mySqlSource = FlinkSourceUtil.getMySqlSource("realtime_v2", "table_process_dim");
+        MySqlSource<String> mySqlSource = FlinkSourceUtil.getMySqlSource("realtime_v1", "table_process_dim");
 
         DataStreamSource<String> mysqlStrDS = env.fromSource(mySqlSource, WatermarkStrategy.noWatermarks(), "mysql_source")
                 .setParallelism(1);

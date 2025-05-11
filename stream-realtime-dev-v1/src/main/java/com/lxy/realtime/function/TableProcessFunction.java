@@ -34,7 +34,7 @@ public class TableProcessFunction extends BroadcastProcessFunction<JSONObject, T
     public void open(Configuration parameters) throws Exception {
 
         Connection mySQLConnection = JdbcUtil.getMySQLConnection();
-        List<TableProcessDim> tableProcessDimList = JdbcUtil.queryList(mySQLConnection, "select * from realtime_v2.table_process_dim", TableProcessDim.class, true);
+        List<TableProcessDim> tableProcessDimList = JdbcUtil.queryList(mySQLConnection, "select * from realtime_v1.table_process_dim", TableProcessDim.class, true);
         for (TableProcessDim tableProcessDim : tableProcessDimList) {
             configMap.put(tableProcessDim.getSourceTable(),tableProcessDim);
         }
