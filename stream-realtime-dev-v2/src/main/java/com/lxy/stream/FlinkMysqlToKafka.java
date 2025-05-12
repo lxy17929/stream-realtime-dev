@@ -1,4 +1,4 @@
-package com.lxy.stream.app.ods;
+package com.lxy.stream;
 
 import com.realtime.common.constant.Constant;
 import com.realtime.common.utils.FlinkEnvUtils;
@@ -18,7 +18,7 @@ public class FlinkMysqlToKafka {
         StreamExecutionEnvironment env = FlinkEnvUtils.getFlinkRuntimeEnv();
 
         //todo 获取mysqlSource
-        MySqlSource<String> mySqlSource = FlinkSourceUtil.getMySqlSource("realtime_v2", "*");
+        MySqlSource<String> mySqlSource = FlinkSourceUtil.getMySqlSource("realtime_v1", "*");
 
         //todo 封装
         DataStreamSource<String> mysqlSource = env.fromSource(mySqlSource, WatermarkStrategy.noWatermarks(), "mysql_source");
