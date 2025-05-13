@@ -2,14 +2,18 @@ package com.lxy.stream;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.lxy.stream.function.UserInfoMessageDeduplicateProcessFunc;
 import com.realtime.common.utils.FlinkSourceUtil;
 import lombok.SneakyThrows;
 import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.connector.kafka.source.KafkaSource;
+import org.apache.flink.streaming.api.CheckpointingMode;
+import org.apache.flink.streaming.api.datastream.KeyedStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
+import org.apache.flink.streaming.api.functions.co.ProcessJoinFunction;
+import org.apache.flink.streaming.api.windowing.time.Time;
+import org.apache.flink.util.Collector;
 
 import java.time.Duration;
 import java.time.LocalDate;
@@ -32,35 +36,73 @@ public class DbMysqlCdcUserInfo {
         //todo 设置并行度
         env.setParallelism(1);
         //todo 设置检查点
-        //env.enableCheckpointing(5000L, CheckpointingMode.EXACTLY_ONCE);
+        env.enableCheckpointing(5000L, CheckpointingMode.EXACTLY_ONCE);
         //todo 获取kafka主题数据
         KafkaSource<String> kafkaSource = FlinkSourceUtil.getKafkaSource("ods_user_profile", "kafka_source_user_profile");
 
+        //todo 从 Kafka 读取 CDC 变更数据，创建一个字符串类型的数据流
         SingleOutputStreamOperator<String> kafkaSourceDs = env.fromSource(kafkaSource,
-                WatermarkStrategy.<String>forBoundedOutOfOrderness(Duration.ofSeconds(10))
-                        .withTimestampAssigner((event, timestamp) -> JSONObject.parseObject(event).getLong("ts_ms")),
+                WatermarkStrategy.<String>forBoundedOutOfOrderness(Duration.ofSeconds(3))
+                        .withTimestampAssigner((event, timestamp) -> {
+                                    JSONObject jsonObject = JSONObject.parseObject(event);
+                                    if (event != null && jsonObject.containsKey("ts_ms")){
+                                        try {
+                                            return JSONObject.parseObject(event).getLong("ts_ms");
+                                        }catch (Exception e){
+                                            e.printStackTrace();
+                                            System.err.println("Failed to parse event as JSON or get ts_ms: " + event);
+                                            return 0L;
+                                        }
+                                    }
+                                    return 0L;
+                                }
+                        ),
                 "kafka_cdc_db_source"
         ).uid("kafka_cdc_db_source").name("kafka_cdc_db_source");
-        //kafkaSourceDs.print();
-        //todo 将string转换成json
-        SingleOutputStreamOperator<JSONObject> kafkaUserInfoDs = kafkaSourceDs.map(JSONObject::parseObject)
+        //kafkaSourceDs.print("kafkaSourceDs -> ");
+
+        //todo 将string的流转换为JSONObject的流
+        SingleOutputStreamOperator<JSONObject> mapKafkaToJSONObject = kafkaSourceDs.map(JSONObject::parseObject);
+
+        //todo 过滤出user_info表
+        SingleOutputStreamOperator<JSONObject> userInfoDs = mapKafkaToJSONObject
                 .filter(data -> data.getJSONObject("source").getString("table").equals("user_info"))
                 .uid("filter user_info data")
                 .name("filter user_info data");
-        //kafkaUserInfoDs.print();
+        //userInfoDs.print("userInfoDs -> ");
 
-        SingleOutputStreamOperator<JSONObject> userInfoSupMsgDs = kafkaSourceDs.map(JSONObject::parseObject)
+        //todo 过滤user_info_sup_msg表
+        SingleOutputStreamOperator<JSONObject> userInfoSupMsgDs = mapKafkaToJSONObject
                 .filter(data -> data.getJSONObject("source").getString("table").equals("user_info_sup_msg"))
                 .uid("filter user_info_sup_msg data")
                 .name("filter user_info_sup_msg data");
-        //userInfoSupMsgDs.print();
-        SingleOutputStreamOperator<JSONObject> userInfoDs = userInfoSupMsgDs.map(new RichMapFunction<JSONObject, JSONObject>() {
+        //userInfoSupMsgDs.print("userInfoSupMsgDs ->");
+
+        //todo 对获取到的生日进行转换
+        SingleOutputStreamOperator<JSONObject> finalUserInfoDs = userInfoDs.map(new RichMapFunction<JSONObject, JSONObject>() {
+            @Override
+            public JSONObject map(JSONObject jsonObject){
+                JSONObject after = jsonObject.getJSONObject("after");
+                if (after != null && after.containsKey("birthday")) {
+                    Integer epochDay = after.getInteger("birthday");
+                    if (epochDay != null) {
+                        LocalDate date = LocalDate.ofEpochDay(epochDay);
+                        after.put("birthday", date.format(DateTimeFormatter.ISO_DATE));
+                    }
+                }
+                return jsonObject;
+            }
+        });
+        //finalUserInfoDs.print("finalUserInfoDs -> ");
+
+        //todo 获取user_info_sup_msg表中字段信息
+        SingleOutputStreamOperator<JSONObject> mapUserInfoSupDs = userInfoSupMsgDs.map(new RichMapFunction<JSONObject, JSONObject>() {
             @Override
             public JSONObject map(JSONObject jsonObject){
                 JSONObject result = new JSONObject();
                 if (jsonObject.containsKey("after") && jsonObject.getJSONObject("after") != null) {
                     JSONObject after = jsonObject.getJSONObject("after");
-                    result.put("uid", after.getIntValue("uid"));
+                    result.put("uid", after.getString("uid"));
                     result.put("unit_height", after.getString("unit_height"));
                     result.put("create_ts", after.getLong("create_ts"));
                     result.put("weight", after.getString("weight"));
@@ -71,39 +113,23 @@ public class DbMysqlCdcUserInfo {
                 return result;
             }
         });
+        //mapUserInfoSupDs.print("mapUserInfoSupDs ->");
 
-
-        SingleOutputStreamOperator<JSONObject> cdcUserInfoDs = kafkaSourceDs
-                .map(jsonStr -> {
-                    JSONObject json = JSON.parseObject(jsonStr);
-                    JSONObject after = json.getJSONObject("after");
-                    if (after != null && after.containsKey("birthday")) {
-                        Integer epochDay = after.getInteger("birthday");
-                        if (epochDay != null) {
-                            LocalDate date = LocalDate.ofEpochDay(epochDay);
-                            after.put("birthday", date.format(DateTimeFormatter.ISO_DATE));
-                        }
-                    }
-                    return json;
-                })
-                .uid("convert_json")
-                .name("convert_json");
-
-        // 此处数据会存在重复 使用状态进行去重
-        SingleOutputStreamOperator<JSONObject> parseCdcUserInfoDs = cdcUserInfoDs.map(new RichMapFunction<JSONObject, JSONObject>() {
+        //todo 此处数据会存在重复 使用状态进行去重
+        SingleOutputStreamOperator<JSONObject> mapUserInfoDs = finalUserInfoDs.map(new RichMapFunction<JSONObject, JSONObject>() {
                     @Override
                     public JSONObject map(JSONObject jsonObject){
                         JSONObject result = new JSONObject();
                         if (jsonObject.containsKey("after")) {
                             JSONObject after = jsonObject.getJSONObject("after");
                             if (after != null) {
-                                result.put("uid", after.getLongValue("id"));
+                                result.put("uid", after.getString("id"));
                                 result.put("uname", after.getString("name"));
                                 result.put("user_level", after.getString("user_level"));
                                 result.put("login_name", after.getString("login_name"));
                                 result.put("phone_num", after.getString("phone_num"));
                                 result.put("email", after.getString("email"));
-                                result.put("gender", after.getString("gender"));
+                                result.put("gender", after.getString("gender") != null ? after.getString("gender") : "home");
                                 result.put("birthday", after.getString("birthday"));
                                 result.put("ts_ms", jsonObject.getLongValue("ts_ms"));
                                 String birthdayStr = after.getString("birthday");
@@ -131,18 +157,43 @@ public class DbMysqlCdcUserInfo {
                 .filter(data -> !data.isEmpty())
                 .uid("parse json")
                 .name("parse json");
+        //mapUserInfoDs.print("mapUserInfoDs ->");
 
-        SingleOutputStreamOperator<JSONObject> CdcUserInfoSupDs = parseCdcUserInfoDs.keyBy(data -> data.getLongValue("uid"))
-                .process(new UserInfoMessageDeduplicateProcessFunc());
+        //todo 根据用户id进行分组
+        KeyedStream<JSONObject, String> userInfoKeyed = mapUserInfoDs.keyBy(data -> data.getString("uid"));
+        KeyedStream<JSONObject, String> userInfoSupKeyed = mapUserInfoSupDs.keyBy(data -> data.getString("uid"));
 
-        userInfoDs.print("userInfoDs -> ");
-//        CdcUserInfoSupDs.print("CdcUserInfoSupDs ->");
+        //userInfoKeyed.print("userInfoKeyed ->");
+        //userInfoSupKeyed.print("userInfoSupKeyed ->");
+
+        //todo 关联两条流
+        SingleOutputStreamOperator<JSONObject> processIntervalJoin = userInfoKeyed.intervalJoin(userInfoSupKeyed)
+                .between(Time.seconds(-5), Time.seconds(5))
+                .process(new ProcessJoinFunction<JSONObject, JSONObject, JSONObject>() {
+                    @Override
+                    public void processElement(JSONObject left, JSONObject right, ProcessJoinFunction<JSONObject, JSONObject, JSONObject>.Context ctx, Collector<JSONObject> out) {
+                        JSONObject result = new JSONObject();
+                        if (left.getString("uid").equals(right.getString("uid"))) {
+                            result.putAll(left);
+                            result.put("height", right.getString("height"));
+                            result.put("unit_height", right.getString("unit_height"));
+                            result.put("weight", right.getString("weight"));
+                            result.put("unit_weight", right.getString("unit_weight"));
+                        }
+                        out.collect(result);
+                    }
+                });
+        //processIntervalJoin.print("processIntervalJoin ->");
+
+        SingleOutputStreamOperator<String> processIntervalJoinToString = processIntervalJoin.map(JSONObject::toString);
+        processIntervalJoinToString.print("stringSingleOutputStreamOperator -> ");
+
+        //todo 将用户信息标签sink到kafka
+        //processIntervalJoinToString.sinkTo(FlinkSinkUtil.getKafkaSink("dwd_user_info_label"));
 
 
 
-
-
-        env.execute("DbusUserInfo6BaseLabel");
+        env.execute("DbMysqlCdcToHbase");
     }
 
 

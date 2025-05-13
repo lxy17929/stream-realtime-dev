@@ -1,6 +1,5 @@
 package com.lxy.stream;
 
-import com.realtime.common.constant.Constant;
 import com.realtime.common.utils.FlinkEnvUtils;
 import com.realtime.common.utils.FlinkSinkUtil;
 import com.realtime.common.utils.FlinkSourceUtil;
@@ -10,7 +9,7 @@ import org.apache.flink.api.common.eventtime.WatermarkStrategy;
 import org.apache.flink.streaming.api.datastream.DataStreamSource;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 
-public class FlinkMysqlToKafka {
+public class FlinkCDCToKafka {
     @SneakyThrows
     public static void main(String[] args) {
         System.getProperty("HADOOP_USER_NAME","root");
