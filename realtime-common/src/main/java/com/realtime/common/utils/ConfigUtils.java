@@ -1,4 +1,4 @@
-package com.stream.common.utils;
+package com.realtime.common.utils;
 
 import com.google.common.base.Strings;
 import org.slf4j.Logger;

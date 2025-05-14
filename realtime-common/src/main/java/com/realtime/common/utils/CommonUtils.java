@@ -116,11 +116,11 @@ public class CommonUtils {
     }
 
     public static boolean isStage() {
-        return "stage".equals(com.stream.common.utils.ConfigUtils.getString("env"));
+        return "stage".equals(ConfigUtils.getString("env"));
     }
 
     public static boolean isProd() {
-        return "prod".equals(com.stream.common.utils.ConfigUtils.getString("env"));
+        return "prod".equals(ConfigUtils.getString("env"));
     }
 
     public static void printCheckPropEnv(boolean isExit, String... args) {
