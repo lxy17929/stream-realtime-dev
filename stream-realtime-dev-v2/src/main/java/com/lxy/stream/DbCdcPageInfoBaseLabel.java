@@ -7,7 +7,6 @@ import com.lxy.stream.function.MapDeviceAndSearchMarkModelFunc;
 import com.lxy.stream.function.MapPageInfoFacility;
 import com.lxy.stream.function.ProcessFilterRepeatTsData;
 import com.realtime.common.constant.Constant;
-import com.realtime.common.utils.ConfigUtils;
 import com.realtime.common.utils.FlinkSinkUtil;
 import com.realtime.common.utils.FlinkSourceUtil;
 import com.realtime.common.utils.JdbcUtils;
@@ -123,7 +122,7 @@ public class DbCdcPageInfoBaseLabel {
         SingleOutputStreamOperator<String> deviceAndSearchMarkModelPageLogsDsSinkToKafka = deviceAndSearchMarkModelPageLogsDs.map(JSONObject::toString);
         deviceAndSearchMarkModelPageLogsDsSinkToKafka.print("deviceAndSearchMarkModelPageLogsDsSinkToKafka ->");
 
-        deviceAndSearchMarkModelPageLogsDsSinkToKafka.sinkTo(FlinkSinkUtil.getKafkaSink("dwd_page_info_base_lebel"));
+        deviceAndSearchMarkModelPageLogsDsSinkToKafka.sinkTo(FlinkSinkUtil.getKafkaSink("dwd_page_info_base_lebel_v1"));
 
         env.disableOperatorChaining();
         env.execute("DbCdcPageInfoBaseLabel");

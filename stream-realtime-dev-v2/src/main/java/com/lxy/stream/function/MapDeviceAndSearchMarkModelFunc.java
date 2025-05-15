@@ -4,7 +4,6 @@ import com.alibaba.fastjson.JSONObject;
 import com.lxy.stream.bean.DimBaseCategory;
 import com.lxy.stream.bean.DimCategoryCompare;
 import com.realtime.common.constant.Constant;
-import com.realtime.common.utils.ConfigUtils;
 import com.realtime.common.utils.JdbcUtils;
 import org.apache.flink.api.common.functions.RichMapFunction;
 import org.apache.flink.configuration.Configuration;
@@ -54,7 +53,7 @@ public class MapDeviceAndSearchMarkModelFunc extends RichMapFunction<JSONObject,
 
 
     @Override
-    public JSONObject map(JSONObject jsonObject) throws Exception {
+    public JSONObject map(JSONObject jsonObject) {
         String os = jsonObject.getString("os");
         String[] labels = os.split(",");
         String judge_os = labels[0];

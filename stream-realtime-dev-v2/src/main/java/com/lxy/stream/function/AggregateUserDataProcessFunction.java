@@ -29,7 +29,7 @@ public class AggregateUserDataProcessFunction extends KeyedProcessFunction<Strin
 
 
     @Override
-    public void open(Configuration parameters) throws Exception {
+    public void open(Configuration parameters) {
         // 初始化PV状态
         pvState = getRuntimeContext().getState(
                 new ValueStateDescriptor<>("pv-state", Long.class)
@@ -52,6 +52,7 @@ public class AggregateUserDataProcessFunction extends KeyedProcessFunction<Strin
         // 更新PV
         Long pv = pvState.value() == null ? 1L : pvState.value() + 1;
         pvState.update(pv);
+
 
         // 提取设备信息和搜索词
         JSONObject deviceInfo = value.getJSONObject("deviceInfo");
@@ -79,6 +80,9 @@ public class AggregateUserDataProcessFunction extends KeyedProcessFunction<Strin
         output.put("md", String.join(",", getField("md")));
         output.put("ba", String.join(",", getField("ba")));
         output.put("search_item", String.join(",", getField("search_item")));
+        //todo
+        String tsMs = value.getString("ts");
+        output.put("ts_ms",tsMs);
 
         out.collect(output);
     }
