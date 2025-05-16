@@ -22,8 +22,8 @@ public class IntervalDbOrderInfoJoinOrderDetailProcessFunc extends ProcessJoinFu
         result.put("detail_id",jsonObject2.getString("id"));
         result.put("order_id",jsonObject2.getString("order_id"));
         result.put("sku_id",jsonObject2.getLongValue("sku_id"));
-        result.put("split_activity_amount",jsonObject2.getLongValue("split_activity_amount"));
-        result.put("split_total_amount",jsonObject2.getLongValue("split_total_amount"));
+        result.put("split_activity_amount",jsonObject2.getBigDecimal("split_activity_amount"));
+        result.put("split_total_amount",jsonObject2.getBigDecimal("split_total_amount"));
         collector.collect(result);
     }
 }

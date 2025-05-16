@@ -28,7 +28,7 @@ public class DbCdcUserProfileBaseLabel {
         //todo 获取环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         //todo 设置并行度
-        env.setParallelism(1);
+        env.setParallelism(4);
         //todo 设置 Checkpoint 模式为精确一次 (默认)
         env.enableCheckpointing(5000L, CheckpointingMode.EXACTLY_ONCE);
 
@@ -56,7 +56,7 @@ public class DbCdcUserProfileBaseLabel {
         //userInfoLabelKafkaSourceDs.print("userInfoLabelKafkaSourceDs ->");
 
         SingleOutputStreamOperator<String> pageInfoBaseLabelKafkaSourceDs = env.fromSource(
-                FlinkSourceUtil.getKafkaSource("dwd_page_info_base_lebel", "kafka_source_dwd_page_info_base_lebel_v1"),
+                FlinkSourceUtil.getKafkaSource("dwd_page_info_base_lebel", "kafka_source_dwd_page_info_base_lebel"),
                 WatermarkStrategy.<String>forBoundedOutOfOrderness(Duration.ofSeconds(3))
                         .withTimestampAssigner((event, timestamp) -> {
                                     JSONObject jsonObject = JSONObject.parseObject(event);
@@ -111,7 +111,7 @@ public class DbCdcUserProfileBaseLabel {
 
         SingleOutputStreamOperator<JSONObject> userInfoJoinrderInfoBaseLabelDs = keyedUserInfoLabelDs
                 .intervalJoin(keyedOrderInfoBaseLabelDs)
-                .between(Time.hours(-24), Time.hours(24))
+                .between(Time.days(-10), Time.days(10))
                 .process(new ProcessJoinFunction<JSONObject, JSONObject, JSONObject>() {
                     @Override
                     public void processElement(JSONObject left, JSONObject right, ProcessJoinFunction<JSONObject, JSONObject, JSONObject>.Context ctx, Collector<JSONObject> out) {
@@ -121,23 +121,27 @@ public class DbCdcUserProfileBaseLabel {
                 });
         //userInfoJoinrderInfoBaseLabelDs.print();
 
-//        SingleOutputStreamOperator<JSONObject> winUserInfoJoinrderInfoBaseLabelDs = userInfoJoinrderInfoBaseLabelDs.assignTimestampsAndWatermarks(
-//                WatermarkStrategy.<JSONObject>forBoundedOutOfOrderness(Duration.ofSeconds(5))
-//                        .withTimestampAssigner((SerializableTimestampAssigner<JSONObject>) (jsonObject, l) -> jsonObject.getLongValue("ts_ms")));
-        //winUserInfoJoinrderInfoBaseLabelDs.print();
+        SingleOutputStreamOperator<JSONObject> winUserInfoJoinrderInfoBaseLabelDs = userInfoJoinrderInfoBaseLabelDs.assignTimestampsAndWatermarks(
+                WatermarkStrategy.<JSONObject>forBoundedOutOfOrderness(Duration.ofHours(1))
+                        .withTimestampAssigner((SerializableTimestampAssigner<JSONObject>) (jsonObject, l) -> jsonObject.getLongValue("ts_ms")));
+        //winUserInfoJoinrderInfoBaseLabelDs.print("winUserInfoJoinrderInfoBaseLabelDs ->");
 
-        SingleOutputStreamOperator<JSONObject> userLabelProcessDs = keyedUserInfoLabelDs.keyBy(data -> data.getString("uid"))
+        KeyedStream<JSONObject, String> keyedwinUserInfoJoinrderInfoBaseLabelDs = winUserInfoJoinrderInfoBaseLabelDs.keyBy(data -> data.getString("uid"));
+
+        SingleOutputStreamOperator<JSONObject> userLabelProcessDs = keyedwinUserInfoJoinrderInfoBaseLabelDs
                 .intervalJoin(keyedPageInfoBaseLabelDs)
-                .between(Time.days(-3), Time.days(3))
+                .between(Time.hours(-24), Time.hours(24))
                 .process(new ProcessJoinFunction<JSONObject, JSONObject, JSONObject>() {
                     @Override
                     public void processElement(JSONObject left, JSONObject right, ProcessJoinFunction<JSONObject, JSONObject, JSONObject>.Context ctx, Collector<JSONObject> out) {
+                        System.err.println(left);
+                        System.err.println(right);
                         left.putAll(right);
                         out.collect(left);
                     }
                 });
 
-        userLabelProcessDs.print();
+        userLabelProcessDs.print("userLabelProcessDs ->");
 
         env.disableOperatorChaining();
         env.execute("DbCdcOrderInfoBaseLabel");

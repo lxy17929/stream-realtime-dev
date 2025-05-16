@@ -63,8 +63,8 @@ public class DbCdcPageInfoBaseLabel {
         //todo 获取环境
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         //todo 设置并行度
-        env.setParallelism(1);
-        //todo 设置检查点
+        env.setParallelism(4);
+        //todo 设置 Checkpoint 模式为精确一次 (默认)
         env.enableCheckpointing(5000L, CheckpointingMode.EXACTLY_ONCE);
         //todo 获取kafka主题数据
         //todo 从 Kafka 读取 CDC 变更数据，创建一个字符串类型的数据流
@@ -102,8 +102,10 @@ public class DbCdcPageInfoBaseLabel {
         KeyedStream<JSONObject, String> keyedStreamLogPageMsg = filterNotNullUidLogPageMsg.keyBy(data -> data.getString("uid"));
         //keyedStreamLogPageMsg.print("keyedStreamLogPageMsg ->");
 
+        //todo 对重复数据进行去重
         //mapPageInfoDs -> > {"uid":"332","deviceInfo":{"ar":"31","uid":"332","os":"iOS","ch":"Appstore","md":"iPhone 14","vc":"v2.1.134","ba":"iPhone"},"ts":1744212138255}
         //mapPageInfoDs -> > {"uid":"332","deviceInfo":{"ar":"31","uid":"332","os":"iOS","ch":"Appstore","md":"iPhone 14","vc":"v2.1.134","ba":"iPhone"},"ts":1744212151506}
+        //todo 通过状态进行去重
         SingleOutputStreamOperator<JSONObject> processStagePageLogDs = keyedStreamLogPageMsg.process(new ProcessFilterRepeatTsData());
         //processStagePageLogDs.print("processStagePageLogDs ->");
 
@@ -115,14 +117,14 @@ public class DbCdcPageInfoBaseLabel {
                 .reduce((value1, value2) -> value2)
                 .uid("win 2 minutes page count msg")
                 .name("win 2 minutes page count msg");
-        //win2MinutesPageLogsDs.print("win2MinutesPageLogsDs ->");
+        win2MinutesPageLogsDs.print("win2MinutesPageLogsDs ->");
 
         SingleOutputStreamOperator<JSONObject> deviceAndSearchMarkModelPageLogsDs = win2MinutesPageLogsDs.map(new MapDeviceAndSearchMarkModelFunc(dim_base_categories, device_rate_weight_coefficient, search_rate_weight_coefficient));
 
         SingleOutputStreamOperator<String> deviceAndSearchMarkModelPageLogsDsSinkToKafka = deviceAndSearchMarkModelPageLogsDs.map(JSONObject::toString);
-        deviceAndSearchMarkModelPageLogsDsSinkToKafka.print("deviceAndSearchMarkModelPageLogsDsSinkToKafka ->");
+        //deviceAndSearchMarkModelPageLogsDsSinkToKafka.print("deviceAndSearchMarkModelPageLogsDsSinkToKafka ->");
 
-        deviceAndSearchMarkModelPageLogsDsSinkToKafka.sinkTo(FlinkSinkUtil.getKafkaSink("dwd_page_info_base_lebel_v1"));
+        //deviceAndSearchMarkModelPageLogsDsSinkToKafka.sinkTo(FlinkSinkUtil.getKafkaSink("dwd_page_info_base_lebel"));
 
         env.disableOperatorChaining();
         env.execute("DbCdcPageInfoBaseLabel");

@@ -291,8 +291,9 @@ public class DbusUserInfo6BaseLabel {
                 .between(Time.minutes(-2), Time.minutes(2))
                 .process(new Interval4BaseJoin2BaseFunc()).print();*/
 
-
-
+        processIntervalJoinUserInfo6BaseMessageDs.print("processIntervalJoinUserInfo6BaseMessageDs ->");
+        mapOrderInfoAndDetailModelDs.print("mapOrderInfoAndDetailModelDs");
+        mapDeviceAndSearchRateResultDs.print("mapDeviceAndSearchRateResultDs ->");
 
         /*processIntervalJoinUserInfo6BaseMessageDs.map(data -> data.toJSONString())
                 .sinkTo(

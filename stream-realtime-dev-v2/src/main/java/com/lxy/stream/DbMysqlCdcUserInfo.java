@@ -35,7 +35,7 @@ public class DbMysqlCdcUserInfo {
         StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
         //todo 设置并行度
         env.setParallelism(1);
-        //todo 设置检查点
+        //todo 设置 Checkpoint 模式为精确一次 (默认)
         env.enableCheckpointing(5000L, CheckpointingMode.EXACTLY_ONCE);
         //todo 获取kafka主题数据
         KafkaSource<String> kafkaSource = FlinkSourceUtil.getKafkaSource("ods_user_profile", "kafka_source_user_profile");

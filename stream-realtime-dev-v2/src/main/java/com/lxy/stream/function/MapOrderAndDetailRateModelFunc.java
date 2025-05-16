@@ -3,6 +3,7 @@ package com.lxy.stream.function;
 import com.alibaba.fastjson.JSONObject;
 import com.lxy.stream.bean.DimBaseCategory;
 import com.lxy.stream.bean.DimSkuInfoMsg;
+import com.realtime.common.constant.Constant;
 import com.realtime.common.utils.ConfigUtils;
 import com.realtime.common.utils.JdbcUtils;
 import org.apache.flink.api.common.functions.RichMapFunction;
@@ -43,9 +44,9 @@ public class MapOrderAndDetailRateModelFunc extends RichMapFunction<JSONObject,J
     public void open(Configuration parameters) throws Exception {
 
         connection = JdbcUtils.getMySQLConnection(
-                ConfigUtils.getString("mysql.url"),
-                ConfigUtils.getString("mysql.user"),
-                ConfigUtils.getString("mysql.pwd"));
+                Constant.MYSQL_URL,
+                Constant.MYSQL_USER_NAME,
+                Constant.MYSQL_PASSWORD);
 
         String querySkuSql = "select sku_info.id as skuid,      \n" +
                 "       spu_info.id as spuid,           \n" +
