@@ -1,6 +1,8 @@
 package com.lxy.stream;
 
 import com.alibaba.fastjson.JSONObject;
+import com.lxy.stream.function.ProcessJoinBase2AndBase4Func;
+import com.lxy.stream.function.ProcessJoinBase6LabelFunc;
 import com.realtime.common.utils.FlinkSourceUtil;
 import lombok.SneakyThrows;
 import org.apache.flink.api.common.eventtime.SerializableTimestampAssigner;
@@ -112,34 +114,15 @@ public class DbCdcUserProfileBaseLabel {
         SingleOutputStreamOperator<JSONObject> userInfoJoinrderInfoBaseLabelDs = keyedUserInfoLabelDs
                 .intervalJoin(keyedOrderInfoBaseLabelDs)
                 .between(Time.days(-10), Time.days(10))
-                .process(new ProcessJoinFunction<JSONObject, JSONObject, JSONObject>() {
-                    @Override
-                    public void processElement(JSONObject left, JSONObject right, ProcessJoinFunction<JSONObject, JSONObject, JSONObject>.Context ctx, Collector<JSONObject> out) {
-                        left.putAll(right);
-                        out.collect(left);
-                    }
-                });
+                .process(new ProcessJoinBase2AndBase4Func());
         //userInfoJoinrderInfoBaseLabelDs.print();
 
-        SingleOutputStreamOperator<JSONObject> winUserInfoJoinrderInfoBaseLabelDs = userInfoJoinrderInfoBaseLabelDs.assignTimestampsAndWatermarks(
-                WatermarkStrategy.<JSONObject>forBoundedOutOfOrderness(Duration.ofHours(1))
-                        .withTimestampAssigner((SerializableTimestampAssigner<JSONObject>) (jsonObject, l) -> jsonObject.getLongValue("ts_ms")));
-        //winUserInfoJoinrderInfoBaseLabelDs.print("winUserInfoJoinrderInfoBaseLabelDs ->");
-
-        KeyedStream<JSONObject, String> keyedwinUserInfoJoinrderInfoBaseLabelDs = winUserInfoJoinrderInfoBaseLabelDs.keyBy(data -> data.getString("uid"));
+        KeyedStream<JSONObject, String> keyedwinUserInfoJoinrderInfoBaseLabelDs = userInfoJoinrderInfoBaseLabelDs.keyBy(data -> data.getString("uid"));
 
         SingleOutputStreamOperator<JSONObject> userLabelProcessDs = keyedwinUserInfoJoinrderInfoBaseLabelDs
                 .intervalJoin(keyedPageInfoBaseLabelDs)
                 .between(Time.hours(-24), Time.hours(24))
-                .process(new ProcessJoinFunction<JSONObject, JSONObject, JSONObject>() {
-                    @Override
-                    public void processElement(JSONObject left, JSONObject right, ProcessJoinFunction<JSONObject, JSONObject, JSONObject>.Context ctx, Collector<JSONObject> out) {
-                        System.err.println(left);
-                        System.err.println(right);
-                        left.putAll(right);
-                        out.collect(left);
-                    }
-                });
+                .process(new ProcessJoinBase6LabelFunc());
 
         userLabelProcessDs.print("userLabelProcessDs ->");
 
